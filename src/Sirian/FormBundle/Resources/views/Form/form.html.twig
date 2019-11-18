@@ -1,0 +1,73 @@
+{% block suggest_widget %}
+
+    <input id="hidden_{{ id }}" type="hidden" name="{{ full_name }}" value="{{ ids|join(',') }}" />
+    {% set original_full_name = full_name %}
+    {% set full_name = '' %}
+    <input type="text" data-name="{{ original_full_name }}" {{ block('widget_attributes') }} value="{{ texts|join(', ') }}">
+    {% set full_name = original_full_name %}
+
+    {{ block(suggester ~ '_suggest_widget')|default(block('default_suggest_widget'))|raw }}
+{% endblock %}
+
+{% block default_suggest_widget %}
+    {{ block('suggest_widget_javascript') }}
+{% endblock %}
+
+{% block suggest_widget_javascript %}
+    <script type="text/javascript">
+        (function ($) {
+            var firstInit = true;
+            var $input = $('#{{ id }}');
+            var $hidden = $('#hidden_{{ id }}');
+
+            var options = $.extend({
+                width: $input.outerWidth() + 'px',
+                allowClear: !$input.prop('required'),
+                placeholder: '{{ attr.placeholder|default('Search') }}',
+                multiple: {{ multiple ? 1 : 0 }},
+                ajax: {
+                    url: '{{ path('sirian_form_suggest', {name: suggester}) }}',
+                    dataType: 'json',
+                    data: function (term, page) {
+                        return {
+                            query: term,
+                            o: {
+                                page: page
+                            }
+                        }
+                    },
+                    results: function (data, page) {
+                        return {
+                            results: data.items,
+                            more: data.hasMore
+                        }
+                    }
+                },
+                initSelection: function (element, callback) {
+                    if (firstInit) {
+                        callback({{ (multiple ? choices : choices[0])|json_encode|raw }});
+                        firstInit = false;
+                        return;
+                    }
+
+                    $.ajax({
+                        url: '{{ path('sirian_form_suggest_init', {name: suggester}) }}',
+                        data: {
+                            ids: element.val()
+                        },
+                        dataType: 'json',
+                        success: function (data) {
+                            callback(data)
+                        }
+                    });
+                }
+            }, {{ js_options|json_encode|raw }});
+
+            {{ javascriptInjection|default('')|raw }}
+
+            $input.attr('name', $input.attr('data-name')).val($hidden.val());
+            $hidden.remove();
+            $input.select2(options);
+        }(jQuery));
+    </script>
+{% endblock %}
